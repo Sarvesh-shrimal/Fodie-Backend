@@ -1,18 +1,29 @@
-#use Node.js official image
-FROM node:18
+# ---------------- Build Stage ----------------
+FROM node:18 AS build
 
-# create app directory
 WORKDIR /app
 
 # copy package.json and install dependencies
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --only=production
 
 # copy source code
 COPY . .
 
-# Expose Port 
-EXPOSE 3242
+# ---------------- Runtime Stage ----------------
+FROM node:18
 
-# strat app
-CMD [ "npm", "strat" ]
+WORKDIR /app
+
+# copy everything from build stage
+COPY --from=build /app ./
+
+# expose correct port
+EXPOSE 5050
+
+# healthcheck (fix port + typo in /health)
+HEALTHCHECK --interval=30s --timeout=5s --start-interval=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5050/health || exit 1
+
+# start app
+CMD ["npm", "start"]
